@@ -132,7 +132,27 @@ def delete_exercise(id):
 @app.route('/workouts/<int:workout_id>/exercises/<int:exercise_id>/workout_exercises',
            methods=['POST'])
 def add_exercise_to_workout(workout_id, exercise_id):
-    return make_response({'message': 'not implemented'}, 501)
+    workout = db.session.get(Workout, workout_id)
+    if workout is None:
+        return error_response(f'Workout {workout_id} not found.', 404)
+    exercise = db.session.get(Exercise, exercise_id)
+    if exercise is None:
+        return error_response(f'Exercise {exercise_id} not found.', 404)
+
+    try:
+        data = workout_exercise_schema.load(get_json_body())
+        workout_exercise = WorkoutExercise(workout=workout, exercise=exercise, **data)
+        db.session.add(workout_exercise)
+        db.session.commit()
+    except ValidationError as err:
+        return make_response({'errors': err.messages}, 400)
+    except ValueError as err:  # raised by model validations
+        db.session.rollback()
+        return error_response(str(err), 400)
+    except IntegrityError:
+        db.session.rollback()
+        return error_response('That exercise is already in this workout.', 409)
+    return make_response(workout_exercise_schema.dump(workout_exercise), 201)
 
 
 if __name__ == '__main__':
