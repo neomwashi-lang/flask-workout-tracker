@@ -86,22 +86,45 @@ def delete_workout(id):
 
 @app.route('/exercises', methods=['GET'])
 def get_exercises():
-    return make_response({'message': 'not implemented'}, 501)
+    exercises = Exercise.query.order_by(Exercise.name).all()
+    return make_response(ExerciseSchema(many=True).dump(exercises), 200)
 
 
 @app.route('/exercises/<int:id>', methods=['GET'])
 def get_exercise(id):
-    return make_response({'message': 'not implemented'}, 501)
+    exercise = db.session.get(Exercise, id)
+    if exercise is None:
+        return error_response(f'Exercise {id} not found.', 404)
+    return make_response(exercise_detail_schema.dump(exercise), 200)
 
 
 @app.route('/exercises', methods=['POST'])
 def create_exercise():
-    return make_response({'message': 'not implemented'}, 501)
+    try:
+        data = exercise_schema.load(get_json_body())
+        exercise = Exercise(**data)
+        db.session.add(exercise)
+        db.session.commit()
+    except ValidationError as err:
+        return make_response({'errors': err.messages}, 400)
+    except ValueError as err:  # raised by model validations
+        db.session.rollback()
+        return error_response(str(err), 400)
+    except IntegrityError:
+        db.session.rollback()
+        return error_response('An exercise with that name already exists.', 409)
+    return make_response(exercise_schema.dump(exercise), 201)
 
 
 @app.route('/exercises/<int:id>', methods=['DELETE'])
 def delete_exercise(id):
-    return make_response({'message': 'not implemented'}, 501)
+    exercise = db.session.get(Exercise, id)
+    if exercise is None:
+        return error_response(f'Exercise {id} not found.', 404)
+    # The relationship cascade also removes this exercise's WorkoutExercises.
+    db.session.delete(exercise)
+    db.session.commit()
+    return make_response('', 204)
 
 
 # -------------------------------------------------------- Workout exercises
